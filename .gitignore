@@ -1,0 +1,5 @@
+.DS_Store
+
+# Ignoring all raw_data
+raw_data/*
+!raw_data/readme.md
