@@ -19,7 +19,7 @@ tornado_report_dir.mkdir(parents=True, exist_ok=True)
 hail_report_dir.mkdir(parents=True, exist_ok=True)
 wind_report_dir.mkdir(parents=True, exist_ok=True)
 
-def download_file_from_url(url, save_path, retries=3, delay=10, backoff_factor=2):
+def download_file_from_url(url, save_path, retries=3, delay=15, backoff_factor=2):
     """
     Download a file from the given URL and save it to the specified path.
     
