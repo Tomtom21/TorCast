@@ -42,5 +42,6 @@ data
 - All raw, unprocessed data is stored in the `raw/` directory.
 - Weather data is organized by variable in subdirectories under `weather_data/`.
 - All processed data files (e.g., `.h5` files) are stored in the `processed/` directory.
+- Any data within the raw directories is in the unit designated by the source. So in the case of most of the data the unit will be dictated by the NWS.
 
 
