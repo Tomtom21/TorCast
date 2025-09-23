@@ -19,7 +19,26 @@ tornado_report_dir.mkdir(parents=True, exist_ok=True)
 hail_report_dir.mkdir(parents=True, exist_ok=True)
 wind_report_dir.mkdir(parents=True, exist_ok=True)
 
-def download_file_from_url(url, save_path, retries=3, delay=15, backoff_factor=2):
+def make_request_with_retries(url, retries=3, delay=15, backoff_factor=2, timeout=15):
+    """
+    Make a GET request to the given URL with retry logic.
+    :param url: URL to request
+    :return: (response object, None) if successful, (None, error_message) otherwise
+    """
+    wait = delay
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp, None
+        except Exception as e:
+            if attempt == retries:
+                return None, str(e)
+            print(f"Request failed. Sleeping for {wait} seconds before retrying...")
+            time.sleep(wait)
+            wait *= backoff_factor
+
+def download_file_from_url(url, save_path):
     """
     Download a file from the given URL and save it to the specified path.
     
@@ -27,20 +46,13 @@ def download_file_from_url(url, save_path, retries=3, delay=15, backoff_factor=2
     :param save_path: Local path to save the downloaded file
     :return: (True, None) if download was successful, (False, error_message) otherwise
     """
-    wait = delay
-    for attempt in range(1, retries + 1):
-        try:
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()  # Raise an error for HTTP errors
-            with open(save_path, 'wb') as f:
-                f.write(resp.content)
-            return True, None
-        except Exception as e:
-            if attempt == retries:
-                return False, str(e)
-            print(f"Failed. Sleeping for {wait} seconds before retrying...")
-            time.sleep(wait)
-            wait *= backoff_factor
+    resp, error = make_request_with_retries(url)
+    if resp is not None:
+        with open(save_path, 'wb') as f:
+            f.write(resp.content)
+        return True, None
+    else:
+        return False, error
 
 def get_existing_report_types(date_str):
     """
@@ -55,9 +67,11 @@ def get_existing_report_types(date_str):
         "hail": "Hail Reports",
         "wind": "Wind Reports"
     }
+    resp, error = make_request_with_retries(report_url)
+    if resp is None:
+        print(f"Error fetching report types for {date_str}: {error}")
+        return None
     try:
-        resp = requests.get(report_url, timeout=15)
-        resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
 
         found = set()
