@@ -1,0 +1,8 @@
+.DS_Store
+
+# Ignoring all raw_data
+data/*
+!data/readme.md
+
+# Ignoring notebooks for testing
+notebooks/
