@@ -4,18 +4,24 @@ Aggregates storm report data from multiple CSV files into a single Parquet file.
 
 import os
 from pathlib import Path
+import sys
+from datetime import datetime
 
 import pandas as pd
 from tqdm import tqdm
 
-from constants import storm_report_headers, common_storm_report_headers
-
+from constants import storm_report_headers, common_storm_report_headers, geo_bounds
 
 # Get the data directories by navigating ../data from the current working directory
 data_dir = (Path.cwd() / "../../data").resolve()
 hail_storm_reports_dir = data_dir / "raw" / "storm_report_data" / "hail"
 tornado_storm_reports_dir = data_dir / "raw" / "storm_report_data" / "tornado"
 wind_storm_reports_dir = data_dir / "raw" / "storm_report_data" / "wind"
+
+# Save directory for the aggregated Parquet file
+aggregated_output_dir = data_dir / "processed" / "storm_report_data"
+aggregated_output_dir.mkdir(parents=True, exist_ok=True)
+aggregated_output_file = aggregated_output_dir / "storm_report_data.parquet"
 
 # Get the contents of each directory and combine all file paths into one list
 hail_files = [hail_storm_reports_dir / f for f in os.listdir(hail_storm_reports_dir)]
@@ -28,6 +34,9 @@ all_files.sort()
 
 # Collect all DataFrames in a list that we concat later
 df_list = []
+
+# Margin for geo bounds
+GEO_MARGIN = 10.0
 
 # Loop through all_files with tqdm and add each report to the list
 for file_path in tqdm(all_files, desc="Aggregating storm reports"):
@@ -46,6 +55,7 @@ for file_path in tqdm(all_files, desc="Aggregating storm reports"):
     # Read the CSV file
     df = pd.read_csv(file_path, usecols=range(len(header)))
 
+    # Loading the file again if the dataframe we have doesn't have headers
     if list(df.columns) != header:
         df = pd.read_csv(
             file_path,
@@ -63,19 +73,51 @@ for file_path in tqdm(all_files, desc="Aggregating storm reports"):
         print(f"Unexpected date format in filename: {file_path.name}")
         continue
 
-    mm = date_part[:2]
-    dd = date_part[2:4]
-    yy = date_part[4:6]
+    yy = date_part[:2]
+    mm = date_part[2:4]
+    dd = date_part[4:6]
     formatted_date = f"20{yy}-{mm}-{dd}"
 
     df["Date"] = formatted_date
-
-    # Add the Type column
     df["Type"] = report_type
 
-    # Reorder and select only the common columns
+    # Remove rows where State is not exactly 2 characters
+    df = df[df["State"].astype(str).str.len() == 2]
+
+    # Convert Lat/Lon to float, coerce errors to NaN
+    df["Lat"] = pd.to_numeric(df["Lat"], errors="coerce")
+    df["Lon"] = pd.to_numeric(df["Lon"], errors="coerce")
+
+    # Remove rows with Lat/Lon outside bounds (+/- margin)
+    lat_min = geo_bounds["us_lat_min"] - GEO_MARGIN
+    lat_max = geo_bounds["us_lat_max"] + GEO_MARGIN
+    lon_min = geo_bounds["us_lon_min"] - GEO_MARGIN
+    lon_max = geo_bounds["us_lon_max"] + GEO_MARGIN
+
+    df = df[
+        df["Lat"].between(lat_min, lat_max) &
+        df["Lon"].between(lon_min, lon_max)
+    ]
+
+    # Create UTC_Timestamp column by combining Date and Time
+    def make_utc(row):
+        """
+        Creates a UTC timestamp from the date and time columns.
+        """
+        # Time is in military format, e.g., '2130'
+        time_str = str(row["Time"]).zfill(4)
+        date_str = row["Date"]
+        try:
+            dt = datetime.strptime(date_str + time_str, "%Y-%m-%d%H%M")
+            return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            return None
+
+    df["UTC_Timestamp"] = df.apply(make_utc, axis=1)
+
+    # Selecting only the columns we want to keep
     df_common = df[common_storm_report_headers]
-    
+
     # Append to the list only if df_common is not empty
     if not df_common.empty:
         df_list.append(df_common)
@@ -84,8 +126,10 @@ for file_path in tqdm(all_files, desc="Aggregating storm reports"):
 if df_list:
     main_df = pd.concat(df_list, ignore_index=True)
 else:
-    main_df = pd.DataFrame(columns=common_storm_report_headers)
+    print("No valid storm report data to add. df_list is empty.")
+    sys.exit(1)
 
-print(len(main_df))
-print(main_df.head(50))
-print(main_df[(main_df["Type"] == "torn")].head(50))
+# Sorting and saving the final dataframe to Parquet
+main_df.sort_values(by="UTC_Timestamp", inplace=True, ascending=False)
+main_df.to_parquet(aggregated_output_file, index=False)
+print(f"Aggregated storm report data saved to {aggregated_output_file}. Saved {len(main_df)} records.")

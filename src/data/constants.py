@@ -5,12 +5,8 @@ storm_report_headers = {
 }
 
 common_storm_report_headers = [
-    "Date", 
-    "Time", 
+    "UTC_Timestamp",
     "Type",
-    "Location", 
-    "County", 
-    "State", 
     "Lat", 
     "Lon"
 ]
