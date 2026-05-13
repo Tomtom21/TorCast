@@ -1,5 +1,3 @@
-# TorCast
-Machine learning-based weather prediction based on storm report information.
 <div align="center" style="text-align: center;">
 <h1>TorCast</h1>
 <p>
