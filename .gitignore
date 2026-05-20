@@ -7,3 +7,6 @@ data/*
 
 # Ignoring notebooks for testing
 notebooks/
+
+# Ignoring our venv
+venv/
