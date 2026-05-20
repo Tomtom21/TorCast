@@ -15,6 +15,15 @@ class StormReport:
         header = storm_report_headers[self.report_type]
         self.df = pd.read_csv(file_path, usecols=range(len(header)))
 
+        # Loading the file again if the dataframe we have doesn't have headers
+        if list(self.df.columns) != header:
+            self.df = pd.read_csv(
+                self.file_path,
+                names=header,
+                header=0 if len(self.df.columns) == len(header) else None,
+                usecols=range(len(header))
+            )
+
         # Extracting/setting the date and report type
         self.df["Date"] = self._extract_date()
         self.df["Type"] = self.report_type
