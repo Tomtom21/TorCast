@@ -20,3 +20,6 @@ geo_bounds = {
     "us_lon_min": -126.0,
     "us_lon_max": -65.5
 }
+
+# Margin to apply to the lat/lon bounds when filtering storm reports
+GEO_MARGIN = 10.0
