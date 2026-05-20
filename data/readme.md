@@ -7,7 +7,7 @@ Example layout:
 data
 ├── readme.md
 ├── raw/
-│   ├── storm_report_data/
+│   ├── storm_reports/
 │   │   ├── hail/
 │   │   │   ├── hail_2020.csv
 │   │   │   ├── hail_2021.csv
